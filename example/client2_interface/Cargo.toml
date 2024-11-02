@@ -1,0 +1,7 @@
+[package]
+name = "client2_interface"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ffi_rpc = { path = "../../ffi_rpc" }

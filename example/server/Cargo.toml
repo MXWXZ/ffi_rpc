@@ -1,0 +1,12 @@
+[package]
+name = "server"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+abi_stable = "0.11"
+tokio = { version = "1", features = ["full"] }
+client1_interface = { path = "../client1_interface" }
+client2_interface = { path = "../client2_interface" }
+server_interface = { path = "../server_interface" }
+ffi_rpc = { path = "../../ffi_rpc" }

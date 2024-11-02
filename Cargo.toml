@@ -1,0 +1,13 @@
+[workspace]
+
+members = [
+    "ffi_rpc_macro",
+    "ffi_rpc",
+    "example/client1_interface",
+    "example/client2_interface",
+    "example/server_interface",
+    "example/client1",
+    "example/client2",
+    "example/server",
+]
+resolver = "2"

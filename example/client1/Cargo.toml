@@ -1,0 +1,12 @@
+[package]
+name = "client1"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+abi_stable = "0.11"
+ffi_rpc = { path = "../../ffi_rpc" }
+client1_interface = { path = "../client1_interface" }
+
+[lib]
+crate-type = ["cdylib"]

@@ -1,0 +1,17 @@
+[package]
+name = "ffi_rpc"
+version = "0.3.0"
+edition = "2021"
+authors = ["MXWXZ <matrixwxz@gmail.com>"]
+description = "Use FFI with RPC."
+license = "GPL-3.0"
+repository = "https://github.com/MXWXZ/ffi_rpc"
+keywords = ["framework", "rpc", "ffi", "plugin"]
+categories = ["external-ffi-bindings", "asynchronous", "network-programming"]
+
+[dependencies]
+bincode = "1.3"
+abi_stable = "0.11"
+async-ffi = { version = "0.5", features = ["abi_stable", "macros"] }
+async-trait = "0.1"
+ffi_rpc_macro = { version = "0.3", path = "../ffi_rpc_macro" }
