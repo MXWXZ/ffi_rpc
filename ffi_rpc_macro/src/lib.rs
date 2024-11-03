@@ -164,7 +164,7 @@ pub fn plugin_impl_instance(attr: TokenStream, item: TokenStream) -> TokenStream
     let instance = format_ident!("{}_INSTANCE", input.ident.to_string().to_uppercase());
 
     let expanded = quote! {
-        static #instance: std::sync::LazyLock<#ident> = std::sync::LazyLock::new(#init);
+        pub static #instance: std::sync::LazyLock<#ident> = std::sync::LazyLock::new(#init);
 
         #input
     };
