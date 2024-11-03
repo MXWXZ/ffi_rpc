@@ -10,3 +10,9 @@ use crate::plugin::PluginApiRef;
 pub struct Registry {
     pub item: RHashMap<RString, PluginApiRef>,
 }
+
+impl Registry {
+    pub fn get(&self, id: &str) -> PluginApiRef {
+        *self.item.get(id).unwrap()
+    }
+}
