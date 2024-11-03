@@ -198,7 +198,7 @@ pub fn plugin_impl_call(attr: TokenStream, item: TokenStream) -> TokenStream {
             let func = format_ident!("parse_{}", x.to_string().to_lowercase());
             quote! {
                 if (func.as_str().starts_with(#prefix)){
-                    return #ident::#func(func,reg,param).await;
+                    return #ident::#func(func, reg, param).await;
                 }
             }
         })
@@ -260,7 +260,7 @@ pub fn plugin_impl_trait(_: TokenStream, item: TokenStream) -> TokenStream {
                 quote! {
                     #api_name => {
                         let (#(#param),*) = bincode::deserialize(&param).unwrap();
-                        bincode::serialize(&#instance.#ident(reg, #(#param),*).await)
+                        bincode::serialize(&#trait_name::#ident(&*#instance, reg, #(#param),*).await)
                             .unwrap()
                             .into()
                     }
