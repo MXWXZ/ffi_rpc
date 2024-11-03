@@ -28,12 +28,19 @@ pub fn plugin_api(attr: TokenStream, item: TokenStream) -> TokenStream {
 pub fn plugin_api_struct(_: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as ItemStruct);
     let ident = &input.ident;
-    if let Fields::Named(field) = &mut input.fields {
+    let fields: Vec<_> = if let Fields::Named(field) = &mut input.fields {
+        let ret = field
+            .named
+            .iter()
+            .map(|x| x.ident.to_owned().unwrap())
+            .collect();
         field
             .named
             .push(parse_quote!(_ffi_ref: ffi_rpc::plugin::PluginApiRef));
+        ret
     } else if let Fields::Unit = &input.fields {
         input.fields = Fields::Named(parse_quote!({_ffi_ref: ffi_rpc::plugin::PluginApiRef}));
+        Vec::new()
     } else {
         panic!("Expected named fields in struct");
     };
@@ -47,14 +54,18 @@ pub fn plugin_api_struct(_: TokenStream, item: TokenStream) -> TokenStream {
                 id: S) -> Result<Self, abi_stable::library::LibraryError> {
                 let api = ffi_rpc::plugin::load_plugin(path)?;
                 reg.item.insert(id.into().into(), api);
-                Ok(Self{ _ffi_ref: api })
+                Ok(Self{
+                    _ffi_ref: api,
+                    #(#fields: Default::default()),*
+                })
             }
         }
 
         impl From<ffi_rpc::plugin::PluginApiRef> for #ident {
             fn from(v: ffi_rpc::plugin::PluginApiRef) -> Self {
                 Self {
-                    _ffi_ref: v
+                    _ffi_ref: v,
+                    #(#fields: Default::default()),*
                 }
             }
         }
