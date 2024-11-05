@@ -4,7 +4,7 @@ use syn::{
     parse::{Parse, ParseStream},
     parse_macro_input, parse_quote,
     punctuated::Punctuated,
-    ExprClosure, Fields, FnArg, Ident, ImplItem, ItemImpl, ItemStruct, ItemTrait, Pat, Token,
+    Expr, ExprClosure, Fields, FnArg, Ident, ImplItem, ItemImpl, ItemStruct, ItemTrait, Pat, Token,
     TraitItem, TraitItemFn, Type,
 };
 
@@ -267,11 +267,34 @@ pub fn plugin_impl_trait(_: TokenStream, item: TokenStream) -> TokenStream {
                         _ => panic!("unsupported argument"),
                     })
                     .collect();
+                let param_ref: Vec<Expr> = item
+                    .sig
+                    .inputs
+                    .iter()
+                    .skip(2)
+                    .map(|x| match x {
+                        FnArg::Typed(x) => {
+                            let ident = if let Pat::Ident(ident) = x.pat.as_ref() {
+                                &ident.ident
+                            } else {
+                                panic!("unknown argument name")
+                            };
+                            if let Type::Reference(reference) = x.ty.as_ref() {
+                                let and = &reference.and_token;
+                                let mutability = &reference.mutability;
+                                parse_quote!(#and #mutability #ident)
+                            } else {
+                                parse_quote!(#ident)
+                            }
+                        }
+                        _ => panic!("unsupported argument"),
+                    })
+                    .collect();
                 let api_name = format!("{}::{}", trait_name, ident);
                 quote! {
                     #api_name => {
-                        let (#(#param),*) = bincode::deserialize(&param).unwrap();
-                        bincode::serialize(&#trait_name::#ident(&*#instance, reg, #(#param),*).await)
+                        let (#(mut #param),*) = bincode::deserialize(&param).unwrap();
+                        bincode::serialize(&#trait_name::#ident(&*#instance, reg, #(#param_ref),*).await)
                             .unwrap()
                             .into()
                     }

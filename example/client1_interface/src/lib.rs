@@ -15,7 +15,7 @@ pub struct Client1;
 
 #[plugin_api_trait(Client1)]
 pub trait Client1Api1 {
-    async fn add(p: Param, offset: i32) -> i32;
+    async fn add(p: &mut Param, offset: i32) -> i32;
 }
 
 #[plugin_api_trait(Client1)]

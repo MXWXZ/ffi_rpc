@@ -17,7 +17,7 @@ struct Api;
 impl Client2Api for Api {
     async fn add(&self, r: &Registry, a: i32, b: i32) -> i32 {
         let t = Client1::from(r.get("client1"))
-            .add(r, Param { a: 7, b: 8 }, 9)
+            .add(r, &mut Param { a: 7, b: 8 }, 9)
             .await;
         let m = Server::from(r.get("server")).add(r).await;
         let o = Client1::from(r.get("client1")).minus(r, 100, 50).await;

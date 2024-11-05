@@ -32,7 +32,7 @@ async fn main() {
         "client1",
     )
     .unwrap();
-    let ret = lib1.add(&r, Param { a: 2, b: 3 }, 4).await;
+    let ret = lib1.add(&r, &mut Param { a: 2, b: 3 }, 4).await;
     println!("1+2+3+4 should be: {ret}");
 
     let lib2 = Client2::new(
