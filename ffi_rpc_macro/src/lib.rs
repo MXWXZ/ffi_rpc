@@ -310,7 +310,7 @@ pub fn plugin_impl_trait(_: TokenStream, item: TokenStream) -> TokenStream {
         #input
 
         impl #ty {
-            async fn #func(func: abi_stable::std_types::RString,
+            pub async fn #func(func: abi_stable::std_types::RString,
                 reg: &ffi_rpc::registry::Registry,
                 param: abi_stable::std_types::RVec<u8>) -> abi_stable::std_types::RVec<u8> {
                 match func.as_str() {
