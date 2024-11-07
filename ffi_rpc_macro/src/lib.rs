@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    parse::{Parse, ParseStream},
+    parse::{Parse, ParseStream, Parser},
     parse_macro_input, parse_quote,
     punctuated::Punctuated,
     Expr, ExprClosure, Fields, FnArg, Ident, ImplItem, ItemImpl, ItemStruct, ItemTrait, Pat, Token,
@@ -231,16 +231,15 @@ pub fn plugin_impl_call(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn plugin_impl_trait(_: TokenStream, item: TokenStream) -> TokenStream {
+pub fn plugin_impl_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemImpl);
+    let attr = Expr::parse.parse(attr).ok();
     let ty = &input.self_ty;
     let trait_name = input.trait_.as_ref().unwrap().1.get_ident().unwrap();
     let (instance, ty) = if let Type::Path(type_path) = ty.as_ref() {
         let last = type_path.path.segments.last().unwrap();
-        (
-            format_ident!("{}_INSTANCE", &last.ident.to_string().to_uppercase()),
-            &last.ident,
-        )
+        let inst = format_ident!("{}_INSTANCE", &last.ident.to_string().to_uppercase());
+        (attr.unwrap_or(parse_quote!(&*#inst)), &last.ident)
     } else {
         panic!("unknown type path");
     };
@@ -294,7 +293,7 @@ pub fn plugin_impl_trait(_: TokenStream, item: TokenStream) -> TokenStream {
                 quote! {
                     #api_name => {
                         let (#(mut #param),*) = bincode::deserialize(&param).unwrap();
-                        bincode::serialize(&#trait_name::#ident(&*#instance, reg, #(#param_ref),*).await)
+                        bincode::serialize(&#trait_name::#ident(#instance, reg, #(#param_ref),*).await)
                             .unwrap()
                             .into()
                     }
