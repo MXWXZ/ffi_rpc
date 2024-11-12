@@ -12,7 +12,7 @@ pub struct Registry {
 }
 
 impl Registry {
-    pub fn get(&self, id: &str) -> PluginApiRef {
-        *self.item.get(id).unwrap()
+    pub fn get(&self, id: &str) -> Option<PluginApiRef> {
+        self.item.get(id).cloned()
     }
 }
