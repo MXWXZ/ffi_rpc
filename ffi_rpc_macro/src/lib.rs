@@ -123,10 +123,10 @@ pub fn plugin_api_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
         .collect();
 
     let expanded = quote! {
-        #[async_trait::async_trait]
+        #[async_trait::async_trait(?Send)]
         #input
 
-        #[async_trait::async_trait]
+        #[async_trait::async_trait(?Send)]
         impl #trait_name for #struct_name {
             #(#methods)*
         }
@@ -220,8 +220,8 @@ pub fn plugin_impl_call(attr: TokenStream, item: TokenStream) -> TokenStream {
         #[abi_stable::sabi_extern_fn]
         pub fn _ffi_call<'fut>(func: abi_stable::std_types::RString,
             reg: &'fut ffi_rpc::registry::Registry,
-            param: abi_stable::std_types::RVec<u8>) -> async_ffi::BorrowingFfiFuture<'fut, abi_stable::std_types::RVec<u8>> {
-            async_ffi::BorrowingFfiFuture::new(async move {
+            param: abi_stable::std_types::RVec<u8>) -> async_ffi::LocalBorrowingFfiFuture<'fut, abi_stable::std_types::RVec<u8>> {
+            async_ffi::LocalBorrowingFfiFuture::new(async move {
                 #(#cases)*
                 panic!("Function is not defined in the library");
             })
@@ -305,7 +305,7 @@ pub fn plugin_impl_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
         .collect();
     let func = format_ident!("parse_{}", trait_name.to_string().to_lowercase());
     let expanded = quote! {
-        #[async_trait::async_trait]
+        #[async_trait::async_trait(?Send)]
         #input
 
         impl #ty {
