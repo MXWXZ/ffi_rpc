@@ -6,7 +6,7 @@ use abi_stable::{
 use crate::plugin::PluginApiRef;
 
 #[repr(C)]
-#[derive(StableAbi, Default)]
+#[derive(StableAbi, Default, Clone)]
 pub struct Registry {
     pub item: RHashMap<RString, PluginApiRef>,
 }
