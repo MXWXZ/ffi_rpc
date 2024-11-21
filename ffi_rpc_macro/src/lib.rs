@@ -8,14 +8,32 @@ use syn::{
     TraitItem, TraitItemFn, Type,
 };
 
+/// Expand to `plugin_api_struct` + `plugin_api_trait`
+/// ```ignore
+/// #[plugin_api(Client)]
+/// pub trait ClientApi {
+///     async fn add(a: i32, b: i32) -> i32;
+/// }
+/// ```
+/// is equal to
+/// ```ignore
+/// #[plugin_api_struct]
+/// pub struct Client;  // visibility is the same as the trait.
+///
+/// #[plugin_api_trait(Client)]
+/// pub trait ClientApi {
+///     async fn add(a: i32, b: i32) -> i32;
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn plugin_api(attr: TokenStream, item: TokenStream) -> TokenStream {
     let struct_name = parse_macro_input!(attr as Ident);
     let input = parse_macro_input!(item as ItemTrait);
+    let vis = &input.vis;
 
     let expanded = quote! {
         #[ffi_rpc_macro::plugin_api_struct]
-        pub struct #struct_name;
+        #vis struct #struct_name;
 
         #[ffi_rpc_macro::plugin_api_trait(#struct_name)]
         #input
@@ -24,10 +42,35 @@ pub fn plugin_api(attr: TokenStream, item: TokenStream) -> TokenStream {
     expanded.into()
 }
 
+/// Define several useful functions for API struct.
+///
+/// Note that the struct field should be named field and implement `Default`.
+/// ```ignore
+/// use std::env::consts::{DLL_PREFIX, DLL_SUFFIX};
+///
+/// #[plugin_api_struct]
+/// pub struct Client {
+///     field: i32,
+/// }
+/// // These are not allowed.
+/// // pub struct Client(String);
+/// // pub struct Client {
+/// //     no_default: CustomType,
+/// // }
+///
+/// let mut r = Registry::default();
+/// let lib = Client::new(
+///     format!("./target/debug/{}client{}", DLL_PREFIX, DLL_SUFFIX).as_ref(),
+///     &mut r,
+///     "client",
+/// ).unwrap();
+/// let client = Client::from(r.get("client").unwrap());
+/// ```
 #[proc_macro_attribute]
 pub fn plugin_api_struct(_: TokenStream, item: TokenStream) -> TokenStream {
     let mut input = parse_macro_input!(item as ItemStruct);
     let ident = &input.ident;
+    let vis = &input.vis;
     let fields: Vec<_> = if let Fields::Named(field) = &mut input.fields {
         let ret = field
             .named
@@ -49,7 +92,7 @@ pub fn plugin_api_struct(_: TokenStream, item: TokenStream) -> TokenStream {
         #input
 
         impl #ident {
-            pub fn new<S: Into<String>>(path: &std::path::Path,
+            #vis fn new<S: Into<String>>(path: &std::path::Path,
                 reg: &mut ffi_rpc::registry::Registry,
                 id: S) -> Result<Self, abi_stable::library::LibraryError> {
                 let api = ffi_rpc::plugin::load_plugin(path)?;
@@ -74,6 +117,24 @@ pub fn plugin_api_struct(_: TokenStream, item: TokenStream) -> TokenStream {
     expanded.into()
 }
 
+/// Define ffi call for each method in API struct.
+///
+/// Method arguments and return type should be:
+/// - no self (prepend automatically)
+/// - always async
+/// - serializable
+///
+/// Note that the reference is just a wrapper, the implementation side will always construct a new struct.
+/// Thus, we recommand to use value instead of reference to make the definition more explicit.
+/// ```ignore
+/// pub struct Client;
+///
+/// #[plugin_api_trait(Client)]
+/// pub trait ClientApi {
+///     async fn add1(a: i32, b: i32) -> i32;
+///     async fn add2(a: &mut i32, b: i32) -> i32;
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn plugin_api_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
     let struct_name = parse_macro_input!(attr as Ident);
@@ -135,9 +196,24 @@ pub fn plugin_api_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
     expanded.into()
 }
 
+/// Mock a implementation without defining a real library.
+///
+/// ```ignore
+/// #[plugin_impl_instance(||Server{})]
+/// #[plugin_impl_call(ServerApi)]
+/// #[plugin_impl_mock]
+/// struct Server;
+///
+/// #[plugin_impl_trait]
+/// impl ServerApi for Server {}
+///
+/// let mut r = Registry::default();
+/// Server::register_mock(&mut r, "server");    // register the mock plugin.
+/// ```
 #[proc_macro_attribute]
 pub fn plugin_impl_mock(_: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemStruct);
+    let vis = &input.vis;
     let ident = &input.ident;
     let expanded = quote! {
         #input
@@ -148,7 +224,7 @@ pub fn plugin_impl_mock(_: TokenStream, item: TokenStream) -> TokenStream {
                     .as_prefix()
             }));
 
-            pub fn register_mock<S: Into<String>>(reg: &mut ffi_rpc::registry::Registry, id: S)  {
+            #vis fn register_mock<S: Into<String>>(reg: &mut ffi_rpc::registry::Registry, id: S)  {
                 reg.item.insert(id.into().into(), *#ident::_FFI_API);
             }
         }
@@ -156,21 +232,41 @@ pub fn plugin_impl_mock(_: TokenStream, item: TokenStream) -> TokenStream {
     expanded.into()
 }
 
+/// Create a new implementation instance with `LazyLock`.
+///
+/// The instance is named `"{struct_name.to_uppercase()}_INSTANCE"`.
+///
+/// Note that if you need to init the instance at runtime,
+/// please create the static instance manually (e.g, using `OnceLock`).
+/// ```ignore
+/// // static SERVER_INSTANCE: std::sync::LazyLock<Server> = std::sync::LazyLock::new(||Server{});
+/// #[plugin_impl_instance(||Server{})] // pass the init closure.
+/// struct Server;
+/// ```
 #[proc_macro_attribute]
 pub fn plugin_impl_instance(attr: TokenStream, item: TokenStream) -> TokenStream {
     let init = parse_macro_input!(attr as ExprClosure);
     let input = parse_macro_input!(item as ItemStruct);
     let ident = &input.ident;
+    let vis = &input.vis;
     let instance = format_ident!("{}_INSTANCE", input.ident.to_string().to_uppercase());
 
     let expanded = quote! {
-        pub static #instance: std::sync::LazyLock<#ident> = std::sync::LazyLock::new(#init);
+        #vis static #instance: std::sync::LazyLock<#ident> = std::sync::LazyLock::new(#init);
 
         #input
     };
     expanded.into()
 }
 
+/// Define the root module in the plugin, `_ffi_call` must be defined in the same file.
+///
+/// Note that each plugin MUST have ONLY one root module.
+/// You might need to customize `_ffi_call` if multiple instances in one plugin is needed (not common).
+/// ```ignore
+/// #[plugin_impl_root]
+/// struct Api;
+/// ```
 #[proc_macro_attribute]
 pub fn plugin_impl_root(_: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemStruct);
@@ -196,6 +292,21 @@ impl Parse for TraitList {
     }
 }
 
+/// Define the `_ffi_call` function.
+/// All implemented traits should be passed, seperated by a comma.
+///
+/// Note that each plugin MUST have ONLY one `_ffi_call` function.
+/// You might need to customize it if multiple instances in one plugin is needed (not common).
+/// ```ignore
+/// #[plugin_impl_call(ClientApi1, ClientApi2)]
+/// struct Api;
+///
+/// #[plugin_impl_trait]
+/// impl ClientApi1 for Api {}
+///
+/// #[plugin_impl_trait]
+/// impl ClientApi2 for Api {}
+/// ```
 #[proc_macro_attribute]
 pub fn plugin_impl_call(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attr = parse_macro_input!(attr as TraitList);
@@ -230,6 +341,41 @@ pub fn plugin_impl_call(attr: TokenStream, item: TokenStream) -> TokenStream {
     expanded.into()
 }
 
+/// Define how to invoke the methods.
+///
+/// A function named `"parse_{trait_name.to_lowercase()}"` is created to invoke each method from `_ffi_call`.
+/// By default, it uses `"{struct_name.to_uppercase()}_INSTANCE"`.
+/// You can pass an expression to guide how to get the actual instance if you define the instance manually.
+/// ```ignore
+/// #[plugin_impl_instance(|| Api{})]
+/// struct Api;
+///
+/// #[plugin_impl_trait]    // will use `API_INSTANCE` by default.
+/// impl ClientApi for Api {}
+/// ```
+/// Manually created instance:
+/// ```ignore
+/// static XX_INSTANCE: OnceLock<Api> = OnceLock::new();
+/// struct Api;
+///
+/// #[plugin_impl_trait(XX_INSTANCE.get().unwrap())]
+/// impl ClientApi for Api {}
+/// ```
+///
+/// For each method, you need to prepend two arguments: `&self` and `reg: &Registry`.
+/// ```ignore
+/// // Interface
+/// pub trait ClientApi {
+///     async fn add(a: i32, b: i32) -> i32;
+/// }
+/// // Implementation
+/// #[plugin_impl_trait]
+/// impl ClientApi for Api {
+///     async fn add(&self, _: &Registry, a: i32, b: i32) -> i32 {
+///         a + b
+///     }
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn plugin_impl_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemImpl);

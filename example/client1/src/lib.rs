@@ -18,7 +18,7 @@ impl Client1Api1 for Api {
     }
 }
 
-#[plugin_impl_trait(&*API_INSTANCE)]
+#[plugin_impl_trait(&*API_INSTANCE)] // #[plugin_impl_trait] is also ok!
 impl Client1Api2 for Api {
     async fn minus(&self, _: &Registry, a: i32, b: i32) -> i32 {
         a - b

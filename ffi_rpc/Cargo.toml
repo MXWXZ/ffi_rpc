@@ -1,10 +1,11 @@
 [package]
 name = "ffi_rpc"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 authors = ["MXWXZ <matrixwxz@gmail.com>"]
 description = "Use FFI with RPC."
 license = "GPL-3.0"
+readme = "../README.md"
 repository = "https://github.com/MXWXZ/ffi_rpc"
 keywords = ["framework", "rpc", "ffi", "plugin"]
 categories = ["external-ffi-bindings", "asynchronous", "network-programming"]
