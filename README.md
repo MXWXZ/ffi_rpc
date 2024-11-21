@@ -1,5 +1,9 @@
 # ffi_rpc
 
+[![crates.io](https://img.shields.io/crates/v/ffi_rpc?label=crates.io&style=flat-square)](https://crates.io/crates/ffi_rpc)
+[![docs.rs](https://img.shields.io/docsrs/ffi_rpc?style=flat-square)](https://docs.rs/ffi_rpc/latest)
+![license](https://img.shields.io/github/license/mxwxz/ffi_rpc?style=flat-square)
+
 Use FFI with RPC! The ABI is stable, any serializable type can be safely transferred through the FFI boundary.
 
 ## Why this crate
