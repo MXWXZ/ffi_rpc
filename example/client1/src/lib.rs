@@ -13,7 +13,7 @@ struct Api(i32);
 
 #[plugin_impl_trait]
 impl Client1Api1 for Api {
-    async fn add(&self, _: &Registry, p: &mut Param, offset: i32) -> i32 {
+    async fn add(&self, _: &Registry, p: Param, offset: i32) -> i32 {
         self.0 + p.a + p.b + offset
     }
 }

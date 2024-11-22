@@ -123,16 +123,15 @@ pub fn plugin_api_struct(_: TokenStream, item: TokenStream) -> TokenStream {
 /// - no self (prepend automatically)
 /// - always async
 /// - serializable
+/// - no reference and mut
 ///
-/// Note that the reference is just a wrapper, the implementation side will always construct a new struct.
-/// Thus, we recommand to use value instead of reference to make the definition more explicit.
+/// The implemetation will always use value, while the caller will always use reference.
 /// ```ignore
 /// pub struct Client;
 ///
 /// #[plugin_api_trait(Client)]
 /// pub trait ClientApi {
 ///     async fn add1(a: i32, b: i32) -> i32;
-///     async fn add2(a: &mut i32, b: i32) -> i32;
 /// }
 /// ```
 #[proc_macro_attribute]
@@ -140,34 +139,57 @@ pub fn plugin_api_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
     let struct_name = parse_macro_input!(attr as Ident);
     let mut input = parse_macro_input!(item as ItemTrait);
     let trait_name = &input.ident;
+    let vis = &input.vis;
 
     let methods: Vec<_> = input
         .items
         .iter_mut()
         .filter_map(|item| {
             if let TraitItem::Fn(TraitItemFn { attrs, sig, .. }) = item {
-                let param: Vec<Ident> = sig
+                let mut method_sig = sig.clone();
+                let param: Vec<Ident> = method_sig
                     .inputs
-                    .iter()
+                    .iter_mut()
                     .map(|x| match x {
                         FnArg::Typed(x) => {
-                            if let Pat::Ident(ident) = x.pat.as_ref() {
+                            let ret = if let Pat::Ident(ident) = x.pat.as_ref() {
+                                if ident.by_ref.is_some() || ident.mutability.is_some() {
+                                    panic!("ref and mut is not supported")
+                                }
+                                if ident.subpat.is_some() {
+                                    panic!("subpat is not supported")
+                                }
                                 ident.ident.clone()
                             } else {
-                                panic!("unknown argument name")
-                            }
+                                panic!("unsupported argument type")
+                            };
+                            let ty = &x.ty;
+                            x.ty = if let Type::Path(x) = ty.as_ref() {
+                                if x.path.get_ident().is_some_and(|x| *x == "String") {
+                                    parse_quote!(&str)
+                                } else {
+                                    parse_quote!(&#ty)
+                                }
+                            } else {
+                                parse_quote!(&#ty)
+                            };
+                            ret
                         }
-                        _ => panic!("unsupported argument"),
+                        _ => panic!("unsupported `self` argument"),
                     })
                     .collect();
                 sig.inputs
                     .insert(0, parse_quote!(_ffi_reg: &ffi_rpc::registry::Registry));
                 sig.inputs.insert(0, parse_quote!(&self));
+                method_sig
+                    .inputs
+                    .insert(0, parse_quote!(_ffi_reg: &ffi_rpc::registry::Registry));
+                method_sig.inputs.insert(0, parse_quote!(&self));
                 let method_name = &sig.ident;
                 let api_name = format!("{}::{}", trait_name, method_name);
                 Some(quote! {
                     #(#attrs)*
-                    #sig {
+                    #vis #method_sig {
                         let param = (#(#param),*);
                         let ret = self._ffi_ref.call()(
                             abi_stable::std_types::RString::from(#api_name),
@@ -187,8 +209,7 @@ pub fn plugin_api_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
         #[async_trait::async_trait(?Send)]
         #input
 
-        #[async_trait::async_trait(?Send)]
-        impl #trait_name for #struct_name {
+        impl #struct_name {
             #(#methods)*
         }
     };
@@ -240,7 +261,7 @@ pub fn plugin_impl_mock(_: TokenStream, item: TokenStream) -> TokenStream {
 /// please create the static instance manually (e.g, using `OnceLock`).
 /// ```ignore
 /// // static SERVER_INSTANCE: std::sync::LazyLock<Server> = std::sync::LazyLock::new(||Server{});
-/// #[plugin_impl_instance(||Server{})] // pass the init closure.
+/// #[plugin_impl_instance(|| Server{})] // pass the init closure.
 /// struct Server;
 /// ```
 #[proc_macro_attribute]
@@ -334,7 +355,7 @@ pub fn plugin_impl_call(attr: TokenStream, item: TokenStream) -> TokenStream {
             param: abi_stable::std_types::RVec<u8>) -> async_ffi::LocalBorrowingFfiFuture<'fut, abi_stable::std_types::RVec<u8>> {
             async_ffi::LocalBorrowingFfiFuture::new(async move {
                 #(#cases)*
-                panic!("Function is not defined in the library");
+                panic!("{}", format!("Function `{func}` is not defined in the library"));
             })
         }
     };
@@ -412,34 +433,11 @@ pub fn plugin_impl_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
                         _ => panic!("unsupported argument"),
                     })
                     .collect();
-                let param_ref: Vec<Expr> = item
-                    .sig
-                    .inputs
-                    .iter()
-                    .skip(2)
-                    .map(|x| match x {
-                        FnArg::Typed(x) => {
-                            let ident = if let Pat::Ident(ident) = x.pat.as_ref() {
-                                &ident.ident
-                            } else {
-                                panic!("unknown argument name")
-                            };
-                            if let Type::Reference(reference) = x.ty.as_ref() {
-                                let and = &reference.and_token;
-                                let mutability = &reference.mutability;
-                                parse_quote!(#and #mutability #ident)
-                            } else {
-                                parse_quote!(#ident)
-                            }
-                        }
-                        _ => panic!("unsupported argument"),
-                    })
-                    .collect();
                 let api_name = format!("{}::{}", trait_name, ident);
                 quote! {
                     #api_name => {
-                        let (#(mut #param),*) = bincode::deserialize(&param).unwrap();
-                        bincode::serialize(&#trait_name::#ident(#instance, reg, #(#param_ref),*).await)
+                        let (#(#param),*) = bincode::deserialize(&param).unwrap();
+                        bincode::serialize(&#trait_name::#ident(#instance, reg, #(#param),*).await)
                             .unwrap()
                             .into()
                     }

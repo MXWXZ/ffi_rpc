@@ -1,7 +1,7 @@
 use std::env::consts::{DLL_PREFIX, DLL_SUFFIX};
 
-use client1_interface::{Client1, Client1Api1, Param};
-use client2_interface::{Client2, Client2Api};
+use client1_interface::{Client1, Param};
+use client2_interface::Client2;
 use ffi_rpc::{
     async_ffi, async_trait, bincode,
     ffi_rpc_macro::{plugin_impl_call, plugin_impl_instance, plugin_impl_mock, plugin_impl_trait},
@@ -32,7 +32,7 @@ async fn main() {
         "client1",
     )
     .unwrap();
-    let ret = lib1.add(&r, &mut Param { a: 2, b: 3 }, 4).await;
+    let ret = lib1.add(&r, &Param { a: 2, b: 3 }, &4).await;
     println!("1+2+3+4 should be: {ret}");
 
     let lib2 = Client2::new(
@@ -41,6 +41,6 @@ async fn main() {
         "client2",
     )
     .unwrap();
-    let ret = lib2.add(&r, 1, 2).await;
+    let ret = lib2.add(&r, &1, &2).await;
     println!("1+2+1+7+8+9+10+100-50 should be: {ret}");
 }

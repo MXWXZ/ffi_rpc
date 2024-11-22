@@ -80,7 +80,7 @@ How to invoke other clients: [example](example/client2/src/lib.rs).
     ```
 3. Invoke methods:
     ```rust
-    let ret = lib.add(&r, 1, 2).await;
+    let ret = lib.add(&r, &1, &2).await;
     ```
 How to mock a client: [example](example/server/src/main.rs).
 
