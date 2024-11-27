@@ -7,7 +7,7 @@ use abi_stable::{
     std_types::{RString, RVec},
     StableAbi,
 };
-use async_ffi::LocalBorrowingFfiFuture;
+use async_ffi::BorrowingFfiFuture;
 
 use crate::registry::Registry;
 
@@ -21,7 +21,7 @@ pub struct PluginApi {
         RString,
         &'fut Registry,
         RVec<u8>,
-    ) -> LocalBorrowingFfiFuture<'fut, RVec<u8>>,
+    ) -> BorrowingFfiFuture<'fut, RVec<u8>>,
 }
 
 /// The RootModule trait defines how to load the root module of a library.

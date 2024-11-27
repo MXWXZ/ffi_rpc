@@ -92,8 +92,8 @@ pub fn _ffi_call(
     func: RString,      // function to call `Trait::Method`.
     reg: &Registry,     // registry.
     param: RVec<u8>,    // function params.
-) -> LocalBorrowingFfiFuture<'_, RVec<u8>> {
-    LocalBorrowingFfiFuture::new(async move {
+) -> BorrowingFfiFuture<'_, RVec<u8>> {
+    BorrowingFfiFuture::new(async move {
         if func.as_str().starts_with("Trait1::") {
             return Trait1Impl::parse_trait1(func, reg, param).await;
         }
