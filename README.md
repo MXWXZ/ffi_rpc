@@ -41,7 +41,6 @@ How to split one interface into multiple traits: [example](example/client1_inter
 1. Add `abi_stable = "0.11"` and `ffi_rpc` to `[dependencies]` in `Cargo.toml`.
 2. In `lib.rs`:
     ```rust
-    use client_interface::ClientApi;
     use ffi_rpc::{
         abi_stable::prefix_type::PrefixTypeTrait,
         async_ffi, async_trait, bincode,
@@ -51,11 +50,11 @@ How to split one interface into multiple traits: [example](example/client1_inter
 
     #[plugin_impl_instance(|| Api{})]
     #[plugin_impl_root]
-    #[plugin_impl_call(ClientApi)]
+    #[plugin_impl_call(client_interface::ClientApi)]    // must use full path
     struct Api;
 
     #[plugin_impl_trait]
-    impl ClientApi for Api {
+    impl client_interface::ClientApi for Api {   // must use full path
         async fn add(&self, _: &Registry, a: i32, b: i32) -> i32 {
             a + b
         }
@@ -94,11 +93,11 @@ pub fn _ffi_call(
     param: RVec<u8>,    // function params.
 ) -> BorrowingFfiFuture<'_, RVec<u8>> {
     BorrowingFfiFuture::new(async move {
-        if func.as_str().starts_with("Trait1::") {
-            return Trait1Impl::parse_trait1(func, reg, param).await;
+        if func.as_str().starts_with("crate::mod::Trait1::") {
+            return crate::mod::Trait1Impl::parse_crate_mod_Trait1(func, reg, param).await;
         }
-        if func.as_str().starts_with("Trait2::") {
-            return Trait2Impl::parse_trait2(func, reg, param).await;
+        if func.as_str().starts_with("crate::mod::Trait2::") {
+            return crate::mod::Trait2Impl::parse_crate_mod_Trait2(func, reg, param).await;
         }
         panic!("Function is not defined in the library");
     })

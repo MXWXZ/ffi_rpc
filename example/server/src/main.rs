@@ -7,15 +7,14 @@ use ffi_rpc::{
     ffi_rpc_macro::{plugin_impl_call, plugin_impl_instance, plugin_impl_mock, plugin_impl_trait},
     registry::Registry,
 };
-use server_interface::ServerApi;
 
 #[plugin_impl_instance(||Server{})]
-#[plugin_impl_call(ServerApi)]
+#[plugin_impl_call(server_interface::ServerApi)]
 #[plugin_impl_mock]
 struct Server;
 
 #[plugin_impl_trait]
-impl ServerApi for Server {
+impl server_interface::ServerApi for Server {
     async fn add(&self, _: &ffi_rpc::registry::Registry) -> i32 {
         10
     }

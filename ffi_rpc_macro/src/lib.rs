@@ -4,8 +4,8 @@ use syn::{
     parse::{Parse, ParseStream, Parser},
     parse_macro_input, parse_quote,
     punctuated::Punctuated,
-    Expr, ExprClosure, Fields, FnArg, Ident, ImplItem, ItemImpl, ItemStruct, ItemTrait, Pat, Token,
-    TraitItem, TraitItemFn, Type,
+    Expr, ExprClosure, Fields, FnArg, Ident, ImplItem, ItemImpl, ItemStruct, ItemTrait, Pat, Path,
+    Token, TraitItem, TraitItemFn, Type,
 };
 
 /// Expand to `plugin_api_struct` + `plugin_api_trait`
@@ -191,8 +191,9 @@ pub fn plugin_api_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
                     #(#attrs)*
                     #vis #method_sig {
                         let param = (#(#param),*);
+                        const FUNC_NAME: &str = concat!(module_path!(), "::", #api_name);
                         let ret = self._ffi_ref.call()(
-                            abi_stable::std_types::RString::from(#api_name),
+                            abi_stable::std_types::RString::from(FUNC_NAME),
                             _ffi_reg,
                             bincode::serialize(&param).unwrap().into(),
                         ).await;
@@ -221,12 +222,12 @@ pub fn plugin_api_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// ```ignore
 /// #[plugin_impl_instance(||Server{})]
-/// #[plugin_impl_call(ServerApi)]
+/// #[plugin_impl_call(aa::bb::ServerApi)]
 /// #[plugin_impl_mock]
 /// struct Server;
 ///
 /// #[plugin_impl_trait]
-/// impl ServerApi for Server {}
+/// impl aa::bb::ServerApi for Server {}
 ///
 /// let mut r = Registry::default();
 /// Server::register_mock(&mut r, "server");    // register the mock plugin.
@@ -303,7 +304,7 @@ pub fn plugin_impl_root(_: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 struct TraitList {
-    traits: Punctuated<Ident, Token![,]>,
+    traits: Punctuated<Path, Token![,]>,
 }
 
 impl Parse for TraitList {
@@ -314,19 +315,19 @@ impl Parse for TraitList {
 }
 
 /// Define the `_ffi_call` function.
-/// All implemented traits should be passed, seperated by a comma.
+/// All implemented traits should be passed using full path, seperated by a comma.
 ///
 /// Note that each plugin MUST have ONLY one `_ffi_call` function.
 /// You might need to customize it if multiple instances in one plugin is needed (not common).
 /// ```ignore
-/// #[plugin_impl_call(ClientApi1, ClientApi2)]
+/// #[plugin_impl_call(aa::bb::ClientApi1, aa::bb::ClientApi2)]
 /// struct Api;
 ///
 /// #[plugin_impl_trait]
-/// impl ClientApi1 for Api {}
+/// impl aa::bb::ClientApi1 for Api {}
 ///
 /// #[plugin_impl_trait]
-/// impl ClientApi2 for Api {}
+/// impl aa::bb::ClientApi2 for Api {}
 /// ```
 #[proc_macro_attribute]
 pub fn plugin_impl_call(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -337,8 +338,14 @@ pub fn plugin_impl_call(attr: TokenStream, item: TokenStream) -> TokenStream {
         .traits
         .into_iter()
         .map(|x| {
-            let prefix = format!("{}::", x);
-            let func = format_ident!("parse_{}", x.to_string().to_lowercase());
+            let str = x
+                .segments
+                .iter()
+                .map(|x| x.ident.to_string())
+                .collect::<Vec<_>>()
+                .join("::");
+            let prefix = format!("{}::", str);
+            let func = format_ident!("parse_{}", str.replace("::", "_").to_lowercase());
             quote! {
                 if (func.as_str().starts_with(#prefix)){
                     return #ident::#func(func, reg, param).await;
@@ -362,9 +369,9 @@ pub fn plugin_impl_call(attr: TokenStream, item: TokenStream) -> TokenStream {
     expanded.into()
 }
 
-/// Define how to invoke the methods.
+/// Define how to invoke the methods. You MUST use the full path for the trait.
 ///
-/// A function named `"parse_{trait_name.to_lowercase()}"` is created to invoke each method from `_ffi_call`.
+/// A function named `"parse_{trait_full_path.replace("::", "_").to_uppercase()}"` is created to invoke each method from `_ffi_call`.
 /// By default, it uses `"{struct_name.to_uppercase()}_INSTANCE"`.
 /// You can pass an expression to guide how to get the actual instance if you define the instance manually.
 /// ```ignore
@@ -372,7 +379,7 @@ pub fn plugin_impl_call(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// struct Api;
 ///
 /// #[plugin_impl_trait]    // will use `API_INSTANCE` by default.
-/// impl ClientApi for Api {}
+/// impl aa::bb::ClientApi for Api {}
 /// ```
 /// Manually created instance:
 /// ```ignore
@@ -380,7 +387,7 @@ pub fn plugin_impl_call(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// struct Api;
 ///
 /// #[plugin_impl_trait(XX_INSTANCE.get().unwrap())]
-/// impl ClientApi for Api {}
+/// impl aa::bb::ClientApi for Api {}
 /// ```
 ///
 /// For each method, you need to prepend two arguments: `&self` and `reg: &Registry`.
@@ -391,7 +398,7 @@ pub fn plugin_impl_call(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// }
 /// // Implementation
 /// #[plugin_impl_trait]
-/// impl ClientApi for Api {
+/// impl aa::bb::ClientApi for Api {
 ///     async fn add(&self, _: &Registry, a: i32, b: i32) -> i32 {
 ///         a + b
 ///     }
@@ -402,7 +409,13 @@ pub fn plugin_impl_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as ItemImpl);
     let attr = Expr::parse.parse(attr).ok();
     let ty = &input.self_ty;
-    let trait_name = input.trait_.as_ref().unwrap().1.get_ident().unwrap();
+    let trait_path = &input.trait_.as_ref().unwrap().1;
+    let trait_str = trait_path
+        .segments
+        .iter()
+        .map(|x| x.ident.to_string())
+        .collect::<Vec<_>>()
+        .join("::");
     let (instance, ty) = if let Type::Path(type_path) = ty.as_ref() {
         let last = type_path.path.segments.last().unwrap();
         let inst = format_ident!("{}_INSTANCE", &last.ident.to_string().to_uppercase());
@@ -433,11 +446,11 @@ pub fn plugin_impl_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
                         _ => panic!("unsupported argument"),
                     })
                     .collect();
-                let api_name = format!("{}::{}", trait_name, ident);
+                let api_name = format!("{}::{}", trait_str, ident);
                 quote! {
                     #api_name => {
                         let (#(#param),*) = bincode::deserialize(&param).unwrap();
-                        bincode::serialize(&#trait_name::#ident(#instance, reg, #(#param),*).await)
+                        bincode::serialize(&#trait_path::#ident(#instance, reg, #(#param),*).await)
                             .unwrap()
                             .into()
                     }
@@ -447,7 +460,7 @@ pub fn plugin_impl_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
         })
         .collect();
-    let func = format_ident!("parse_{}", trait_name.to_string().to_lowercase());
+    let func = format_ident!("parse_{}", trait_str.replace("::", "_").to_lowercase());
     let expanded = quote! {
         #[async_trait::async_trait]
         #input

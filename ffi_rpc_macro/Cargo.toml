@@ -1,6 +1,6 @@
 [package]
 name = "ffi_rpc_macro"
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
 authors = ["MXWXZ <matrixwxz@gmail.com>"]
 description = "Proc macros for ffi_rpc."

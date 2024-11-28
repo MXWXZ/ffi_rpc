@@ -1,5 +1,4 @@
 use client1_interface::{Client1, Param};
-use client2_interface::Client2Api;
 use ffi_rpc::{
     abi_stable::prefix_type::PrefixTypeTrait,
     async_ffi, async_trait, bincode,
@@ -10,11 +9,11 @@ use server_interface::Server;
 
 #[plugin_impl_instance(|| Api{})]
 #[plugin_impl_root]
-#[plugin_impl_call(Client2Api)]
+#[plugin_impl_call(client2_interface::Client2Api)]
 struct Api;
 
 #[plugin_impl_trait]
-impl Client2Api for Api {
+impl client2_interface::Client2Api for Api {
     async fn add(&self, r: &Registry, a: i32, b: i32) -> i32 {
         let t = Client1::from(r.get("client1").unwrap())
             .add(r, &Param { a: 7, b: 8 }, &9)
