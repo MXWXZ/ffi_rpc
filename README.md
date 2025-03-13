@@ -26,7 +26,7 @@ Assume you have three projects:
 2. In `lib.rs`:
     ```rust
     use ffi_rpc::{
-        abi_stable, async_trait, bincode,
+        abi_stable, async_trait, rmp_serde,
         ffi_rpc_macro::{self, plugin_api},
     };
 
@@ -43,7 +43,7 @@ How to split one interface into multiple traits: [example](example/client1_inter
     ```rust
     use ffi_rpc::{
         abi_stable::prefix_type::PrefixTypeTrait,
-        async_ffi, async_trait, bincode,
+        async_ffi, async_trait, rmp_serde,
         ffi_rpc_macro::{plugin_impl_call, plugin_impl_instance, plugin_impl_root, plugin_impl_trait},
         registry::Registry,
     };
@@ -103,3 +103,6 @@ pub fn _ffi_call(
     })
 }
 ```
+
+## Features
+- `tokio`: By default, `async_ffi` does not include `tokio` runtime. Enabling this feature can help you enter the `tokio` runtime in ffi functions. You can refer to the [example](example/client2/src/lib.rs).
