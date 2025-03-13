@@ -7,5 +7,7 @@ pub mod registry;
 pub use abi_stable;
 pub use async_ffi;
 pub use async_trait;
-pub use bincode;
 pub use ffi_rpc_macro;
+pub use rmp_serde;
+#[cfg(feature = "tokio")]
+pub use tokio;

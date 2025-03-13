@@ -195,9 +195,9 @@ pub fn plugin_api_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
                         let ret = self._ffi_ref.call()(
                             abi_stable::std_types::RString::from(FUNC_NAME),
                             _ffi_reg,
-                            bincode::serialize(&param).unwrap().into(),
+                            rmp_serde::to_vec(&param).unwrap().into(),
                         ).await;
-                        bincode::deserialize(&ret).unwrap()
+                        rmp_serde::from_slice(&ret).unwrap()
                     }
                 })
             } else {
@@ -353,6 +353,30 @@ pub fn plugin_impl_call(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
         })
         .collect();
+    let call = if cfg!(feature = "tokio") {
+        quote! {
+            static _RUNTIME: std::sync::LazyLock<tokio::runtime::Runtime> =
+                std::sync::LazyLock::new(|| tokio::runtime::Runtime::new().unwrap());
+            async_ffi::BorrowingFfiFuture::new(async move {
+                let block_func = async {
+                    #(#cases)*
+                    panic!("{}", format!("Function `{func}` is not defined in the library"));
+                };
+                if tokio::runtime::Handle::try_current().is_ok() {
+                    block_func.await
+                } else {
+                    _RUNTIME.block_on(block_func)
+                }
+            })
+        }
+    } else {
+        quote! {
+            async_ffi::BorrowingFfiFuture::new(async move {
+                #(#cases)*
+                panic!("{}", format!("Function `{func}` is not defined in the library"));
+            })
+        }
+    };
     let expanded = quote! {
         #input
 
@@ -360,10 +384,7 @@ pub fn plugin_impl_call(attr: TokenStream, item: TokenStream) -> TokenStream {
         pub fn _ffi_call<'fut>(func: abi_stable::std_types::RString,
             reg: &'fut ffi_rpc::registry::Registry,
             param: abi_stable::std_types::RVec<u8>) -> async_ffi::BorrowingFfiFuture<'fut, abi_stable::std_types::RVec<u8>> {
-            async_ffi::BorrowingFfiFuture::new(async move {
-                #(#cases)*
-                panic!("{}", format!("Function `{func}` is not defined in the library"));
-            })
+            #call
         }
     };
     expanded.into()
@@ -449,8 +470,8 @@ pub fn plugin_impl_trait(attr: TokenStream, item: TokenStream) -> TokenStream {
                 let api_name = format!("{}::{}", trait_str, ident);
                 quote! {
                     #api_name => {
-                        let (#(#param),*) = bincode::deserialize(&param).unwrap();
-                        bincode::serialize(&#trait_path::#ident(#instance, reg, #(#param),*).await)
+                        let (#(#param),*) = rmp_serde::from_slice(&param).unwrap();
+                        rmp_serde::to_vec(&#trait_path::#ident(#instance, reg, #(#param),*).await)
                             .unwrap()
                             .into()
                     }

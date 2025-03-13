@@ -1,6 +1,7 @@
 use ffi_rpc::{
-    abi_stable, async_trait, bincode,
+    abi_stable, async_trait,
     ffi_rpc_macro::{plugin_api_struct, plugin_api_trait},
+    rmp_serde,
 };
 use serde::{Deserialize, Serialize};
 

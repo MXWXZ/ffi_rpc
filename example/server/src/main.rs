@@ -3,9 +3,10 @@ use std::env::consts::{DLL_PREFIX, DLL_SUFFIX};
 use client1_interface::{Client1, Param};
 use client2_interface::Client2;
 use ffi_rpc::{
-    async_ffi, async_trait, bincode,
+    async_ffi, async_trait,
     ffi_rpc_macro::{plugin_impl_call, plugin_impl_instance, plugin_impl_mock, plugin_impl_trait},
     registry::Registry,
+    rmp_serde,
 };
 
 #[plugin_impl_instance(||Server{})]

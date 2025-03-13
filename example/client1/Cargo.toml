@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 abi_stable = "0.11"
-ffi_rpc = { path = "../../ffi_rpc" }
+ffi_rpc = { path = "../../ffi_rpc", features = ["tokio"] }
 client1_interface = { path = "../client1_interface" }
 
 [lib]
